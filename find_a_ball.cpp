@@ -24,6 +24,9 @@ void process(const char * const imPath)
 {
 	Mat m = loadPicture(imPath);
 
+	imshow(imPath, m);
+
+	waitKey(0);
 }
 
 
