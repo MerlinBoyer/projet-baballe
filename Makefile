@@ -9,10 +9,11 @@ BIN=\
 	find
 	
 
-
 .PHONY: all 
 all: $(BIN)
 
+.PHONY: merlin
+merlin: find_a_ball
 
 .PHONY: clean
 clean:
