@@ -71,172 +71,8 @@ typedef struct  {
 
 
 
-#define MAX_AVERAGE_OTSU_PIXVAL 50.
-#define MIN_CONTOUR_RADIUS 10.
-#define MAX_CONTOUR_RADIUS 150.
 
-
-BallPosition selectFirstContour(const char * const imPath)
-{
-	Mat greyM = loadGrayPicture(imPath);
-
-	fastNlMeansDenoising(greyM, greyM, 20., 7, 13);
-
-	threshold(greyM, greyM, 0, 255, THRESH_BINARY + THRESH_OTSU);
-
-
-	int morph_size = 4;
-	Mat element = getStructuringElement(MORPH_ELLIPSE, Size( 2*morph_size + 1, 2*morph_size+1 ), Point(morph_size, morph_size));
-	morphologyEx(greyM, greyM, CV_MOP_OPEN, element);
-	morphologyEx(greyM, greyM, CV_MOP_CLOSE, element);
-
-
-
-	Scalar m = mean(greyM);
-
-	if (m.val[0] > MAX_AVERAGE_OTSU_PIXVAL){
-		return (BallPosition) {0, 0., 0., 0.};
-	}
-
-
-	vector<vector<Point> > contours;
-	vector<Vec4i> hierarchy;
-	findContours(greyM, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE);
-
-	Point2f center;
-	float radius;
-	minEnclosingCircle(contours[0], center, radius);
-
-	if (radius < MIN_CONTOUR_RADIUS || radius > MAX_CONTOUR_RADIUS){
-		return (BallPosition) {0, 0., 0., 0.};
-	}
-
-
-	return (BallPosition) {1, center.x, center.y, radius};
-}
-
-
-
-
-BallPosition selectLargestContour(const char * const imPath)
-{
-	Mat greyM = loadGrayPicture(imPath);
-
-	fastNlMeansDenoising(greyM, greyM, 20., 7, 13);
-
-	threshold(greyM, greyM, 0, 255, THRESH_BINARY + THRESH_OTSU);
-
-
-	int morph_size = 4;
-	Mat element = getStructuringElement(MORPH_ELLIPSE, Size( 2*morph_size + 1, 2*morph_size+1 ), Point(morph_size, morph_size));
-	morphologyEx(greyM, greyM, CV_MOP_OPEN, element);
-
-	morph_size = 6;
-	element = getStructuringElement(MORPH_ELLIPSE, Size( 2*morph_size + 1, 2*morph_size+1 ), Point(morph_size, morph_size));
-	morphologyEx(greyM, greyM, CV_MOP_CLOSE, element);
-
-
-	Scalar m = mean(greyM);
-
-	if (m.val[0] > MAX_AVERAGE_OTSU_PIXVAL){
-		return (BallPosition) {0, 0., 0., 0.};
-	}
-
-
-	vector<vector<Point> > contours;
-	vector<Vec4i> hierarchy;
-	findContours(greyM, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE);
-
-	double largest_area = 0.;
-	unsigned largest_contour_index = 0;
-
-	for (unsigned i = 0 ; i< contours.size() ; i++ ){
-
-		double a = contourArea(contours[i], false);
-
-		if (a > largest_area){
-			largest_area = a;
-			largest_contour_index=i;
-		}
-	}
-
-	Point2f center;
-	float radius;
-	minEnclosingCircle(contours[largest_contour_index], center, radius);
-
-	if (radius < MIN_CONTOUR_RADIUS || radius > MAX_CONTOUR_RADIUS){
-		return (BallPosition) {0, 0., 0., 0.};
-	}
-
-
-	return (BallPosition) {1, center.x, center.y, radius};
-}
-
-
-
-
-
-BallPosition externalAndInBounds(const char * const imPath)
-{
-	Mat greyM = loadGrayPicture(imPath);
-
-	fastNlMeansDenoising(greyM, greyM, 20., 7, 13);
-
-	threshold(greyM, greyM, 0, 255, THRESH_BINARY + THRESH_OTSU);
-
-
-	int morph_size = 4;
-	Mat element = getStructuringElement(MORPH_ELLIPSE, Size( 2*morph_size + 1, 2*morph_size+1 ), Point(morph_size, morph_size));
-	morphologyEx(greyM, greyM, CV_MOP_OPEN, element);
-
-
-	Scalar m = mean(greyM);
-
-	if (m.val[0] > MAX_AVERAGE_OTSU_PIXVAL){
-		return (BallPosition) {0, 0., 0., 0.};
-	}
-
-
-	vector<vector<Point> > contours;
-	vector<Vec4i> hierarchy;
-	findContours(greyM, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE);
-
-	if (contours.size() == 0){
-		return  (BallPosition) {0, 0., 0., 0.};
-	}
-
-	Point2f centerSol;
-	float radiusSol = 0;
-
-	for (unsigned i = 0 ; i < contours.size() ; i++ ){
-
-		Point2f center;
-		float radius;
-		minEnclosingCircle(contours[i], center, radius);
-
-		if (radius < MIN_CONTOUR_RADIUS || radius > MAX_CONTOUR_RADIUS){
-			continue;
-		}
-
-		if (radius > radiusSol){
-			radiusSol = radius;
-			centerSol = center;
-		}
-	}
-
-	if (radiusSol == 0){
-		return  (BallPosition) {0, 0., 0., 0.};
-	}
-
-	return (BallPosition) {1, centerSol.x, centerSol.y, radiusSol};
-}
-
-
-
-
-
-
-typedef BallPosition (*BallFinderMethod)(const char * const fileName);
+typedef BallPosition (*BallFinderMethod)(const char * const fileName, int detail_please);
 
 
 
@@ -317,19 +153,22 @@ void processScore(BallFinderMethod method, const char * const trainResults, cons
 			nbTestsWithBall++;
 		}
 
-		BallPosition predictedPos = method(file_name);
+		BallPosition predictedPos = method(file_name, 0);
 
 		if (!predictedPos.is_found){
 
 			if (correctPos.is_found){
 				nbTestsWithBallButNotFound++;
 				cout << file_name << " !!!\n";
+				method(file_name, 1);
 			}
+
 			continue;
 
 		} else if (!correctPos.is_found){
 			nbTestsWithNoBallButFound++;
 			cout << file_name << " FALSE POSITIVE !!!!!!\n";
+			method(file_name, 1);
 			continue;
 		}
 
@@ -349,6 +188,7 @@ void processScore(BallFinderMethod method, const char * const trainResults, cons
 
 		if (radPrec > MAX_RADIUS_PRECISION || centerPrec > MAX_CENTER_PRECISION){
 			cout << file_name << " " << radPrec << ", " << centerPrec << "\n";
+			method(file_name, 1);
 		} else {
 			nbPassed++;
 		}
@@ -380,6 +220,247 @@ void processScore(BallFinderMethod method, const char * const trainResults, cons
 
 	fclose(results);
 }
+
+
+
+
+
+
+
+#define MAX_AVERAGE_OTSU_PIXVAL 50.
+#define MIN_CONTOUR_RADIUS 10.
+#define MAX_CONTOUR_RADIUS 100.
+
+
+BallPosition selectFirstContour(const char * const imPath, int detail_please)
+{
+	Mat greyM = loadGrayPicture(imPath);
+
+	fastNlMeansDenoising(greyM, greyM, 20., 7, 13);
+
+	threshold(greyM, greyM, 0, 255, THRESH_BINARY + THRESH_OTSU);
+
+
+	int morph_size = 4;
+	Mat element = getStructuringElement(MORPH_ELLIPSE, Size( 2*morph_size + 1, 2*morph_size+1 ), Point(morph_size, morph_size));
+	morphologyEx(greyM, greyM, CV_MOP_OPEN, element);
+	morphologyEx(greyM, greyM, CV_MOP_CLOSE, element);
+
+
+
+	Scalar m = mean(greyM);
+
+	if (m.val[0] > MAX_AVERAGE_OTSU_PIXVAL){
+		return (BallPosition) {0, 0., 0., 0.};
+	}
+
+
+	vector<vector<Point> > contours;
+	vector<Vec4i> hierarchy;
+	findContours(greyM, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE);
+
+	Point2f center;
+	float radius;
+	minEnclosingCircle(contours[0], center, radius);
+
+	if (radius < MIN_CONTOUR_RADIUS || radius > MAX_CONTOUR_RADIUS){
+		return (BallPosition) {0, 0., 0., 0.};
+	}
+
+
+	return (BallPosition) {1, center.x, center.y, radius};
+}
+
+
+
+#define DETAIL_SHOW(name)\
+		do {\
+			if (detail_please){\
+				imshow(name, greyM);\
+			}\
+		} while (0);\
+
+
+#define DETAIL_PLOT_SOL(center, radius)\
+	do {\
+		if (detail_please){\
+			Mat __solM = loadPicture(imPath);\
+			circle(__solM, Point(center.x, center.y), radius, Scalar(0,0,255));\
+			imshow("Found solution", __solM);\
+		}\
+	} while (0);
+
+
+
+#define DETAIL_WAIT()\
+		do {\
+			if (detail_please){\
+				waitKey(0);\
+				cvDestroyAllWindows();\
+			}\
+		} while (0);\
+
+
+BallPosition selectLargestContour(const char * const imPath, int detail_please)
+{
+	Mat greyM = loadGrayPicture(imPath);
+
+	fastNlMeansDenoising(greyM, greyM, 20., 7, 13);
+	DETAIL_SHOW("nlmean");
+
+
+	threshold(greyM, greyM, 0, 255, THRESH_BINARY + THRESH_OTSU);
+	DETAIL_SHOW("otsu");
+
+
+	int morph_size = 4;
+	Mat element = getStructuringElement(MORPH_ELLIPSE, Size( 2*morph_size + 1, 2*morph_size+1 ), Point(morph_size, morph_size));
+	morphologyEx(greyM, greyM, CV_MOP_OPEN, element);
+	DETAIL_SHOW("open");
+
+
+	morph_size = 6;
+	element = getStructuringElement(MORPH_ELLIPSE, Size( 2*morph_size + 1, 2*morph_size+1 ), Point(morph_size, morph_size));
+	morphologyEx(greyM, greyM, CV_MOP_CLOSE, element);
+	DETAIL_SHOW("close");
+
+
+	Scalar m = mean(greyM);
+
+	if (m.val[0] > MAX_AVERAGE_OTSU_PIXVAL){
+		DETAIL_SHOW("stopped by MAX_AVERAGE_OTSU_PIXVAL");
+		DETAIL_WAIT();
+		return (BallPosition) {0, 0., 0., 0.};
+	}
+
+
+	vector<vector<Point> > contours;
+	vector<Vec4i> hierarchy;
+	findContours(greyM, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE);
+	DETAIL_SHOW("findContours");
+
+	double largest_area = 0.;
+	unsigned largest_contour_index = 0;
+
+	for (unsigned i = 0 ; i< contours.size() ; i++ ){
+
+		double a = contourArea(contours[i], false);
+
+		if (a > largest_area){
+			largest_area = a;
+			largest_contour_index=i;
+		}
+	}
+
+	if (largest_area == 0){
+		DETAIL_SHOW("No largest area found");
+		DETAIL_WAIT();
+		return (BallPosition) {0, 0., 0., 0.};
+	}
+
+	Point2f center;
+	float radius;
+	minEnclosingCircle(contours[largest_contour_index], center, radius);
+
+	if (radius < MIN_CONTOUR_RADIUS || radius > MAX_CONTOUR_RADIUS){
+		DETAIL_SHOW("stopped by MIN_MAX_CONTOUR_RADIUS");
+		DETAIL_WAIT();
+		return (BallPosition) {0, 0., 0., 0.};
+	}
+
+	DETAIL_SHOW("Solution returned");
+	DETAIL_WAIT();
+	return (BallPosition) {1, center.x, center.y, radius};
+}
+
+
+
+
+
+BallPosition InBounds(const char * const imPath, int detail_please)
+{
+	Mat greyM = loadGrayPicture(imPath);
+
+	fastNlMeansDenoising(greyM, greyM, 20., 7, 13);
+
+	threshold(greyM, greyM, 0, 255, THRESH_BINARY + THRESH_OTSU);
+	DETAIL_SHOW("otsu");
+
+
+	int morph_size = 6;
+	Mat element = getStructuringElement(MORPH_ELLIPSE, Size( 2*morph_size + 1, 2*morph_size+1 ), Point(morph_size, morph_size));
+	morphologyEx(greyM, greyM, CV_MOP_OPEN, element);
+	DETAIL_SHOW("open");
+
+
+	morph_size = 8;
+	element = getStructuringElement(MORPH_ELLIPSE, Size( 2*morph_size + 1, 2*morph_size+1 ), Point(morph_size, morph_size));
+	morphologyEx(greyM, greyM, CV_MOP_CLOSE, element);
+	DETAIL_SHOW("close");
+
+
+
+	Scalar m = mean(greyM);
+
+	if (m.val[0] > MAX_AVERAGE_OTSU_PIXVAL){
+		DETAIL_SHOW("stopped by MAX_AVERAGE_OTSU_PIXVAL");
+		DETAIL_WAIT();
+
+		return (BallPosition) {0, 0., 0., 0.};
+	}
+
+
+	/*
+	Scalar m = mean(greyM);
+
+	if (m.val[0] > MAX_AVERAGE_OTSU_PIXVAL){
+		return (BallPosition) {0, 0., 0., 0.};
+	}
+	 */
+
+	vector<vector<Point> > contours;
+	vector<Vec4i> hierarchy;
+	findContours(greyM, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE);
+	DETAIL_SHOW("find contour");
+
+	if (contours.size() == 0){
+		DETAIL_SHOW("No contour found");
+		DETAIL_WAIT();
+		return  (BallPosition) {0, 0., 0., 0.};
+	}
+
+	Point2f centerSol;
+	float radiusSol = 0;
+
+	for (unsigned i = 0 ; i < contours.size() ; i++ ){
+
+		Point2f center;
+		float radius;
+		minEnclosingCircle(contours[i], center, radius);
+
+		if (radius < MIN_CONTOUR_RADIUS || radius > MAX_CONTOUR_RADIUS){
+			continue;
+		}
+
+		if (radius > radiusSol){
+			radiusSol = radius;
+			centerSol = center;
+		}
+	}
+
+	if (radiusSol == 0){
+		DETAIL_SHOW("no solution found");
+		DETAIL_WAIT();
+		return  (BallPosition) {0, 0., 0., 0.};
+	}
+
+	DETAIL_PLOT_SOL(centerSol, radiusSol);
+	DETAIL_WAIT();
+	return (BallPosition) {1, centerSol.x, centerSol.y, radiusSol};
+}
+
+
+
 
 
 int main(int argc, char * argv[])
