@@ -60,8 +60,8 @@ void process(const char * const imPath)
 
 	imshow("initial", greyM);
 
-	fastNlMeansDenoising(greyM, greyM, 20., 7, 13);
-	imshow("nl_means", greyM);
+	// fastNlMeansDenoising(greyM, greyM, 20., 7, 13);
+	// imshow("nl_means", greyM);
 
 	threshold(greyM, greyM, 0, 255, THRESH_BINARY + THRESH_OTSU);
 	imshow("otsu", greyM);

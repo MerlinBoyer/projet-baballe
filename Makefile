@@ -13,7 +13,11 @@ BIN=\
 all: $(BIN)
 
 .PHONY: merlin
-merlin: find_a_ball
+merlin: find_a_ball\
+	test_method_merlin
+
+.PHONY: yann
+yann: hsv
 
 .PHONY: clean
 clean:

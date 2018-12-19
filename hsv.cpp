@@ -12,6 +12,7 @@ void
 process(const char* imsname, const char* imdname)
 {
     Mat image =  imread(imsname);
+    imshow("before croping ", image);
     Mat HSV, Hue;
     cvtColor(image, HSV, CV_BGR2HSV);
     Mat h_s_v[3];
@@ -19,20 +20,20 @@ process(const char* imsname, const char* imdname)
     int index = 0;
     split(HSV, h_s_v);
     for (int i = 0; i < h_s_v[2].rows; i++){
-	value = 0;
-	for (int j = 0; j < h_s_v[2].cols; j++){
-	    value += h_s_v[2].at<uchar>(i,j);
-	}    
-	float mean = value/h_s_v[2].cols;
-	if (mean > 120){
-	    index = i;
-	}
+	    value = 0;
+	    for (int j = 0; j < h_s_v[2].cols; j++){
+	        value += h_s_v[2].at<uchar>(i,j);
+	    }    
+        float mean = value/h_s_v[2].cols;
+        if (mean > 120){
+            index = i;
+        }
     }
     std::cout << h_s_v[2].cols << index << h_s_v[2].cols-index << std::endl;
     Mat crp = h_s_v[2](Rect(0, index, h_s_v[2].cols, h_s_v[2].rows-(index+2)));
-    imshow("H", crp);
-    //merge(h_s_v, 3, HSV);
-    //cvtColor(HSV, image, CV_HSV2BGR);
+    //merge(crp, 3, HSV);
+    //cvtColor(crp, image, CV_HSV2BGR);
+    //imshow("colorized", image);
     imwrite(imdname, h_s_v[2]);
     waitKey(0);
 }

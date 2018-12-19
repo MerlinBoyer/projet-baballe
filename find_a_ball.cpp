@@ -67,6 +67,8 @@ float color_scoring(Mat img, Point2f center, int radius, int hsv_min[3], int hsv
 			float S=hsv.val[1]/255.*100;  //opencv range : 255
 			float V=hsv.val[2]/255.*100;  //opencv range : 255
 
+			cout << "H : " << H << " S : " << S << " V : " << V << endl;
+
 			if ( hsv_min[0] < H && H < hsv_max[0]){
 				score++;
 			}
@@ -144,8 +146,8 @@ void process(Mat img)
 
 	// usual threshold : [85;45;30] to [100;65;30] //
 	
-	int thresh_min_in[3] = {85,45,30};
-	int thresh_max_in[3] = {100,65,30};
+	int thresh_min_in[3] = {30,45,30};
+	int thresh_max_in[3] = {40,80,30};
 	int thresh_min_ext[3] = {85,45,30};
 	int thresh_max_ext[3] = {100,65,30};
 
@@ -163,9 +165,10 @@ void process(Mat img)
 	 	score_couleur = score_tot;
 	 	i++;
 	}
+	cout << endl;
 	// si le score n'est pas probant, recupere le contour le mieux classé par findContours
 	if ( score_couleur <= THRESH_COLOR_SCORE ){
-		cout << "fail : " << score_couleur << endl;
+		
 		return;
 	}
 	
