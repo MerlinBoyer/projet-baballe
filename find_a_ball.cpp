@@ -53,7 +53,7 @@ float color_scoring(Mat img, Point2f center, int radius, int hsv_min[3], int hsv
 	Mat HSV;
 	cvtColor(img, HSV, COLOR_BGR2HSV);
 	float score = 0;
-	
+
 	for (int i = -1; i<2; i+=2){
 		for (int j = -1; j<2; j+=2){
 
@@ -109,7 +109,9 @@ void process(Mat img)
 
 	//imshow("initial", greyM);
 
-	blur(greyM, greyM, Size(3,3));
+	// blur(greyM, greyM, Size(3,3));
+	fastNlMeansDenoising(greyM, greyM, 20., 7, 13);
+
 	//imshow("blur", greyM);
 
 	threshold(greyM, greyM, 0, 255, THRESH_BINARY + THRESH_OTSU);
@@ -121,31 +123,32 @@ void process(Mat img)
 	morph_size = 4;
 	element = getStructuringElement(MORPH_ELLIPSE, Size( 2*morph_size + 1, 2*morph_size+1 ), Point(morph_size, morph_size));
 	morphologyEx(greyM, greyM, CV_MOP_OPEN, element);
-	//imshow("morph open 1", greyM);
+	imshow("morph open 1", greyM);
 	morph_size = 6;
 	element = getStructuringElement(MORPH_ELLIPSE, Size( 2*morph_size + 1, 2*morph_size+1 ), Point(morph_size, morph_size));
 	morphologyEx(greyM, greyM, CV_MOP_CLOSE, element);
-	//imshow("morph close 2", greyM);
+	imshow("morph close 2", greyM);
 
-	
+
 
 	vector<vector<Point> > contours;
 	vector<Vec4i> hierarchy;
 	findContours(greyM, contours, hierarchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
-	//imshow("contours", greyM);
+	// imshow("contours", greyM);
+
 
 	// Scalar greyColor = Scalar(255);
 	// drawContours(greyM, contours, 0, greyColor);
 	//imshow("first contour drawn", greyM);
 
 	// drawContours(greyM, contours, -1, greyColor);
-	// imshow("every contour drawn", greyM);
+	 imshow("every contour drawn", greyM);
+	waitKey();
 
 
-	
 
 	// usual threshold : [85;45;30] to [100;65;30] //
-	
+
 	int thresh_min_in[3] = {30,45,30};
 	int thresh_max_in[3] = {40,80,30};
 	int thresh_min_ext[3] = {85,45,30};
@@ -155,7 +158,7 @@ void process(Mat img)
 	Point2f center;
 	float radius;
 	float score_couleur = 0;
-	
+
 	while( score_couleur <= THRESH_COLOR_SCORE && i < contours.size()){
 	 	minEnclosingCircle(contours[i], center, radius);
 	 	float score_couleur_in = color_scoring(img, center, radius, thresh_min_in, thresh_max_in, 4);
@@ -168,16 +171,16 @@ void process(Mat img)
 	cout << endl;
 	// si le score n'est pas probant, recupere le contour le mieux classé par findContours
 	if ( score_couleur <= THRESH_COLOR_SCORE ){
-		
+
 		return;
 	}
-	
+
 
 	// center : [17.5, 240.5]  radius : 6.71478
 	// cout << "center : " << center << "\n";
 	// cout << "radius : " << radius << "\n";
 	// cout << "score : " << score_couleur << endl;
- 
+
 	// Mat output = loadPicture(imPath);
 	Scalar color = Scalar(0,0,255);
 	circle(img, center, (int) radius, color);
@@ -219,4 +222,3 @@ int main(int argc, char * argv[])
 	processvideo( imPath );
 	return 0;
 }
-

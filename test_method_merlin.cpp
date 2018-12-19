@@ -70,158 +70,317 @@ typedef struct  {
 } BallPosition;
 
 
-BallPosition method1(const char * const imPath)
+
+#define MAX_AVERAGE_OTSU_PIXVAL 60.
+#define MIN_CONTOUR_RADIUS 10.
+#define MAX_CONTOUR_RADIUS 150.
+
+/*
+BallPosition selectFirstContour(const char * const imPath)
 {
 	Mat greyM = loadGrayPicture(imPath);
 
-	//fastNlMeansDenoising(greyM, greyM, 20., 7, 13);
+	fastNlMeansDenoising(greyM, greyM, 20., 7, 13);
 
 	threshold(greyM, greyM, 0, 255, THRESH_BINARY + THRESH_OTSU);
+
 
 	int morph_size = 4;
 	Mat element = getStructuringElement(MORPH_ELLIPSE, Size( 2*morph_size + 1, 2*morph_size+1 ), Point(morph_size, morph_size));
 	morphologyEx(greyM, greyM, CV_MOP_OPEN, element);
+	morphologyEx(greyM, greyM, CV_MOP_CLOSE, element);
+
+
+
+	Scalar m = mean(greyM);
+
+	if (m.val[0] > MAX_AVERAGE_OTSU_PIXVAL){
+		return (BallPosition) {0, 0., 0., 0.};
+	}
+
 
 	vector<vector<Point> > contours;
 	vector<Vec4i> hierarchy;
 	findContours(greyM, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE);
 
-	/*
-	  for( int i = 0; i< contours.size(); i++ ) // iterate through each contour.
-	      {
-	       double a=contourArea( contours[i],false);  //  Find the area of contour
-	       if(a>largest_area){
-	       largest_area=a;
-	       largest_contour_index=i;                //Store the index of largest contour
-	       bounding_rect=boundingRect(contours[i]); // Find the bounding rectangle for biggest contour
-	       }
-
-	      }
-	 */
-
 	Point2f center;
 	float radius;
 	minEnclosingCircle(contours[0], center, radius);
 
-	return (BallPosition) {1, center.x, center.y, radius};
-}
-
-
-#define MAX_AVERAGE_OTSU_PIXVAL 50.
-
-#define MIN_CONTOUR_RADIUS 10.
-#define MAX_CONTOUR_RADIUS 150.
-
-/*
-* return a score between 0 and 1 depending on nb of neighbors corresponding to threshold
-* usual threshold : [85;45;30] to [100;65;30]
-*/
-float color_scoring(Mat img, Point2f center, int radius, int hsv_min[3], int hsv_max[3], int offset){
-	Mat HSV;
-	cvtColor(img, HSV, COLOR_BGR2HSV);
-	float score = 0;
-	
-	for (int i = -1; i<2; i+=2){
-		for (int j = -1; j<2; j+=2){
-
-			// check pixels outside the ball
-			if ( center.x + i*(radius + offset) > HSV.rows || center.y + j*(radius + offset) > HSV.cols ){
-				return 0;
-			}
-			Vec3b hsv=HSV.at<Vec3b>(center.x + i*(radius + offset),center.y + j*(radius + offset));
-
-			float H=hsv.val[0] * 2; //opencv range : 180
-			float S=hsv.val[1]/255.*100;  //opencv range : 255
-			float V=hsv.val[2]/255.*100;  //opencv range : 255
-
-			//cout << "H : " << H << " S : " << S << " V : " << V << endl;
-
-			if ( hsv_min[0] < H && H < hsv_max[0]){
-				score++;
-			}
-			if( hsv_min[1] < S && S < hsv_max[1]){
-				score++;
-			}
-			if ( hsv_min[2] < V && V < hsv_max[2]){
-				score++;
-			}
-		}
+	if (radius < MIN_CONTOUR_RADIUS || radius > MAX_CONTOUR_RADIUS){
+		return (BallPosition) {0, 0., 0., 0.};
 	}
 
-	return score / 12;
-}
 
-#define THRESH_COLOR_SCORE 0.5
+	return (BallPosition) {1, center.x, center.y, radius};
+}
+*/
+
+
+/*
 
 BallPosition selectLargestContour(const char * const imPath)
 {
-	Mat img = imread(imPath);
 	Mat greyM = loadGrayPicture(imPath);
 
-	blur(greyM, greyM, Size(3,3));
-	//imshow("blur", greyM);
+	fastNlMeansDenoising(greyM, greyM, 20., 7, 13);
 
 	threshold(greyM, greyM, 0, 255, THRESH_BINARY + THRESH_OTSU);
-	//imshow("otsu", greyM);
 
-	int morph_size; Mat element; Mat temp;
 
-	// improved method
-	morph_size = 4;
-	element = getStructuringElement(MORPH_ELLIPSE, Size( 2*morph_size + 1, 2*morph_size+1 ), Point(morph_size, morph_size));
+	int morph_size = 4;
+	Mat element = getStructuringElement(MORPH_ELLIPSE, Size( 2*morph_size + 1, 2*morph_size+1 ), Point(morph_size, morph_size));
 	morphologyEx(greyM, greyM, CV_MOP_OPEN, element);
-	//imshow("morph open 1", greyM);
+
 	morph_size = 6;
 	element = getStructuringElement(MORPH_ELLIPSE, Size( 2*morph_size + 1, 2*morph_size+1 ), Point(morph_size, morph_size));
 	morphologyEx(greyM, greyM, CV_MOP_CLOSE, element);
-	//imshow("morph close 2", greyM);
 
-	
+
+	Scalar m = mean(greyM);
+
+	if (m.val[0] > MAX_AVERAGE_OTSU_PIXVAL){
+		return (BallPosition) {0, 0., 0., 0.};
+	}
+
 
 	vector<vector<Point> > contours;
 	vector<Vec4i> hierarchy;
-	findContours(greyM, contours, hierarchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
+	findContours(greyM, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE);
 
+	double largest_area = 0.;
+	unsigned largest_contour_index = 0;
 
-	// usual threshold : [85;45;30] to [100;65;30] //
-	
-	int thresh_min_in[3] = {30,45,30};
-	int thresh_max_in[3] = {40,80,30};
-	int thresh_min_ext[3] = {85,45,30};
-	int thresh_max_ext[3] = {100,65,30};
+	for (unsigned i = 0 ; i< contours.size() ; i++ ){
 
-	int i = 0;int max = 0;
+		double a = contourArea(contours[i], false);
+
+		if (a > largest_area){
+			largest_area = a;
+			largest_contour_index=i;
+		}
+	}
+
 	Point2f center;
 	float radius;
-	float score_couleur = 0;
-	
-	while( score_couleur <= THRESH_COLOR_SCORE && i < contours.size()){
-	 	minEnclosingCircle(contours[i], center, radius);
-	 	float score_couleur_in = color_scoring(img, center, radius, thresh_min_in, thresh_max_in, 4);
-	 	float score_couleur_ext = color_scoring(img, center, radius, thresh_min_ext, thresh_max_ext, -4);
-	 	float score_tot = score_couleur_in + score_couleur_ext / 2;
-	 	max = (score_tot > score_couleur) ? i : max;
-	 	score_couleur = score_tot;
-	 	i++;
-	}
-	cout << endl;
-	// si le score n'est pas probant, recupere le contour le mieux classé par findContours
-	if ( score_couleur <= THRESH_COLOR_SCORE ){
-		return (BallPosition) {0, center.x, center.y, radius};
-	}
-	
+	minEnclosingCircle(contours[largest_contour_index], center, radius);
 
-	// center : [17.5, 240.5]  radius : 6.71478
-	// cout << "center : " << center << "\n";
-	// cout << "radius : " << radius << "\n";
-	// cout << "score : " << score_couleur << endl;
- 
-	// Mat output = loadPicture(imPath);
-	Scalar color = Scalar(0,0,255);
-	circle(img, center, (int) radius, color);
+	if (radius < MIN_CONTOUR_RADIUS || radius > MAX_CONTOUR_RADIUS){
+		return (BallPosition) {0, 0., 0., 0.};
+	}
+
 
 	return (BallPosition) {1, center.x, center.y, radius};
 }
+*/
+
+
+
+
+float shapeScore(Point2f center, int radius, vector<Point> contours ){
+	float score = 0;
+	for (unsigned j = 0 ; j < contours.size() ; j++){
+		int norme_carree = abs(contours[j].x - center.x)*abs(contours[j].x - center.x) + abs(contours[j].y - center.y)*abs(contours[j].y - center.y);
+		score += abs( sqrt( norme_carree ) - radius ) / radius;
+	}
+	return score / contours.size();
+}
+
+void printFail(const char * imPath, BallPosition ball)
+{
+	Mat img = imread(imPath);
+	Point2f center;
+	center.x = ball.centerX;
+	center.y = ball.centerY;
+	circle( img, center, (int)ball.radius, Scalar(255,0,0));
+	imshow("fail : ", img);
+	waitKey();
+	return;
+}
+
+int cropIt(Mat image){
+	Mat HSV, Hue;
+	cvtColor(image, HSV, CV_BGR2HSV);
+	Mat h_s_v[3];
+	int value;
+	int index = 0;
+	split(HSV, h_s_v);
+	for (int i = 0; i < h_s_v[2].rows; i++){
+		value = 0;
+		for (int j = 0; j < h_s_v[2].cols; j++){
+				value += h_s_v[2].at<uchar>(i,j);
+		}
+			float mean = value/h_s_v[2].cols;
+			if (mean > 120){
+					index = i;
+			}
+	}
+
+	if (index > image.cols / 2){ index = 0;}
+	// std::cout << h_s_v[2].cols << index << h_s_v[2].cols-index << std::endl;
+	// Mat crp = h_s_v[2](Rect(0, index, h_s_v[2].cols, h_s_v[2].rows-(index+2)));
+	// imshow("cropped", crp);
+	// waitKey();
+	return index;
+}
+
+BallPosition mostRound(const char * const imPath)
+{
+	Mat img = imread(imPath);
+	Mat greyM = loadGrayPicture(imPath);
+	int limitIndex = cropIt(img);
+	// Mat crp = greyM(Rect(0, limitIndex, greyM.cols, greyM.rows-(limitIndex+2)));
+	// imshow("cropped", crp);
+	// waitKey();
+
+	fastNlMeansDenoising(greyM, greyM, 20., 7, 13);
+
+	threshold(greyM, greyM, 0, 255, THRESH_BINARY + THRESH_OTSU);
+
+
+	// improved method
+	int morph_size = 4;
+	Mat element = getStructuringElement(MORPH_ELLIPSE, Size( 2*morph_size + 1, 2*morph_size+1 ), Point(morph_size, morph_size));
+	morphologyEx(greyM, greyM, CV_MOP_OPEN, element);
+	// imshow("morph open 1", greyM);
+	morph_size = 6;
+	element = getStructuringElement(MORPH_ELLIPSE, Size( 2*morph_size + 1, 2*morph_size+1 ), Point(morph_size, morph_size));
+	morphologyEx(greyM, greyM, CV_MOP_CLOSE, element);
+	// imshow("morph close 2", greyM);
+
+	Scalar m = mean(greyM);
+
+	if (m.val[0] > MAX_AVERAGE_OTSU_PIXVAL){
+		cout << " /!/ Otsu overflow error " << endl;
+		return (BallPosition) {0, 0., 0., 0.};
+	}
+
+
+	vector<vector<Point> > contours;
+	vector<Vec4i> hierarchy;
+	findContours(greyM, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE);
+
+	if (contours.size() == 0){
+		cout << " /!/ no contours found " << endl;
+		return  (BallPosition) {0, 0., 0., 0.};
+	}
+
+	Point2f centerSol;
+	float radiusSol = 0;
+	float best_shape_score = 1;
+	for (unsigned i = 0 ; i < contours.size() ; i++ ){
+
+		Point2f center;
+		float radius;
+		minEnclosingCircle(contours[i], center, radius);
+
+		if (radius < MIN_CONTOUR_RADIUS || radius > MAX_CONTOUR_RADIUS){
+			continue;
+		}
+		if ( center.y < limitIndex ){
+			//cout << "index out of range " << endl;
+			continue;
+		}
+
+		float score = shapeScore( center, radius, contours[i]);
+		// printFail(imPath, (BallPosition){1, center.x, center.y, radius});
+		// cout << "score : " << score << " nb de points : " << contours[i].size()<< endl;
+		// drawContours(greyM, contours, 0, Scalar(255));
+		// imshow ("contours", greyM);
+		// waitKey();
+		if (score < best_shape_score ){
+			best_shape_score = score;
+			radiusSol = radius;
+			centerSol = center;
+			// cout << "new best score score : " << score << endl;
+		}
+		// if (radius > radiusSol){
+		// 	radiusSol = radius;
+		// 	centerSol = center;
+		// }
+	}
+
+	if (radiusSol == 0){
+		return  (BallPosition) {0, 0., 0., 0.};
+	}
+	if (best_shape_score >= 0.2){
+		cout << " /!/ shape score not high enough : " << best_shape_score << endl;
+		// Scalar color = Scalar(0,0,255);
+		// circle(img, centerSol, radiusSol, color);
+		// imshow("result", img);
+		// waitKey();
+		return  (BallPosition) {0, 0., 0., 0.};
+	}
+	Scalar color = Scalar(0,0,255);
+	circle(img, centerSol, radiusSol, color);
+	// imshow("result", img);
+	// waitKey();
+  cout << "found with score : " << best_shape_score << endl;
+	return (BallPosition) {1, centerSol.x, centerSol.y, radiusSol};
+}
+
+
+
+/*
+BallPosition externalAndInBounds(const char * const imPath)
+{
+	Mat greyM = loadGrayPicture(imPath);
+
+	fastNlMeansDenoising(greyM, greyM, 20., 7, 13);
+
+	threshold(greyM, greyM, 0, 255, THRESH_BINARY + THRESH_OTSU);
+
+
+	int morph_size = 4;
+	Mat element = getStructuringElement(MORPH_ELLIPSE, Size( 2*morph_size + 1, 2*morph_size+1 ), Point(morph_size, morph_size));
+	morphologyEx(greyM, greyM, CV_MOP_OPEN, element);
+
+
+	Scalar m = mean(greyM);
+
+	if (m.val[0] > MAX_AVERAGE_OTSU_PIXVAL){
+		return (BallPosition) {0, 0., 0., 0.};
+	}
+
+
+	vector<vector<Point> > contours;
+	vector<Vec4i> hierarchy;
+	findContours(greyM, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE);
+
+	if (contours.size() == 0){
+		return  (BallPosition) {0, 0., 0., 0.};
+	}
+
+	Point2f centerSol;
+	float radiusSol = 0;
+	float best_shape_score = 0;
+	for (unsigned i = 0 ; i < contours.size() ; i++ ){
+
+		Point2f center;
+		float radius;
+		minEnclosingCircle(contours[i], center, radius);
+
+		if (radius < MIN_CONTOUR_RADIUS || radius > MAX_CONTOUR_RADIUS){
+			continue;
+		}
+
+		if (radius > radiusSol){
+			radiusSol = radius;
+			centerSol = center;
+		}
+	}
+
+	if (radiusSol == 0){
+		return  (BallPosition) {0, 0., 0., 0.};
+	}
+
+	return (BallPosition) {1, centerSol.x, centerSol.y, radiusSol};
+}
+
+
+*/
+
+
 
 
 
@@ -256,7 +415,6 @@ float centerPrecision(BallPosition & prediction, BallPosition & correct)
 
 #define MAX_RADIUS_PRECISION 0.25
 #define MAX_CENTER_PRECISION 0.25
-
 
 
 void processScore(BallFinderMethod method, const char * const trainResults, const char * const testFolder)
@@ -305,17 +463,20 @@ void processScore(BallFinderMethod method, const char * const trainResults, cons
 
 		BallPosition predictedPos = method(file_name);
 
+
 		if (!predictedPos.is_found){
 
 			if (correctPos.is_found){
 				nbTestsWithBallButNotFound++;
 				cout << file_name << " !!!\n";
+				// printFail( file_name, predictedPos);
 			}
 			continue;
 
 		} else if (!correctPos.is_found){
 			nbTestsWithNoBallButFound++;
-			cout << file_name << " !!!!!!\n";
+			cout << file_name << " FALSE POSITIVE !!!!!!\n";
+			// printFail( file_name, predictedPos);
 			continue;
 		}
 
@@ -335,6 +496,7 @@ void processScore(BallFinderMethod method, const char * const trainResults, cons
 
 		if (radPrec > MAX_RADIUS_PRECISION || centerPrec > MAX_CENTER_PRECISION){
 			cout << file_name << " " << radPrec << ", " << centerPrec << "\n";
+			// printFail( file_name, predictedPos);
 		} else {
 			nbPassed++;
 		}
@@ -375,7 +537,7 @@ int main(int argc, char * argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	processScore(selectLargestContour, argv[1], argv[2]);
+	processScore(mostRound, argv[1], argv[2]);
 
 	return 0;
 }
