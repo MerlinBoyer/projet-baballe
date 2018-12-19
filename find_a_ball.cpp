@@ -5,10 +5,18 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <stdio.h>
 
+#define THRESH_COLOR_SCORE 0.5
+
 using namespace cv;
 using namespace std;
 
 
+/*
+for i in `seq 0 9` ; do (for j in `seq 0 9` ; do (for k in `seq 0 9` ;
+ do ./find_a_ball ../log1/$i$j$k-rgb.png ; done) ; done) ; done ;
+*/
+
+float e1; float e2; float elapsedTime;
 
 Mat loadPicture(const char * const path)
 {
@@ -50,6 +58,9 @@ float color_scoring(Mat img, Point2f center, int radius, int hsv_min[3], int hsv
 		for (int j = -1; j<2; j+=2){
 
 			// check pixels outside the ball
+			if ( center.x + i*(radius + offset) > HSV.rows || center.y + j*(radius + offset) > HSV.cols ){
+				return 0;
+			}
 			Vec3b hsv=HSV.at<Vec3b>(center.x + i*(radius + offset),center.y + j*(radius + offset));
 
 			float H=hsv.val[0] * 2; //opencv range : 180
@@ -86,10 +97,13 @@ const char * name_from_path(const char * const str)
 
 
 
-void process(const char * const imPath)
+void process(Mat img)
 {
-	Mat greyM = loadGrayPicture(imPath);
+	// Mat greyM = loadGrayPicture(imPath);
 	//imshow(imPath, greyM);
+	e1 = getTickCount();
+	Mat greyM;
+    cvtColor( img, greyM, CV_BGR2GRAY);
 
 	//imshow("initial", greyM);
 
@@ -118,7 +132,7 @@ void process(const char * const imPath)
 	findContours(greyM, contours, hierarchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 	//imshow("contours", greyM);
 
-	Scalar greyColor = Scalar(255);
+	// Scalar greyColor = Scalar(255);
 	// drawContours(greyM, contours, 0, greyColor);
 	//imshow("first contour drawn", greyM);
 
@@ -129,49 +143,64 @@ void process(const char * const imPath)
 	
 
 	// usual threshold : [85;45;30] to [100;65;30] //
-	Mat img = imread(imPath);
+	
 	int thresh_min_in[3] = {85,45,30};
 	int thresh_max_in[3] = {100,65,30};
 	int thresh_min_ext[3] = {85,45,30};
 	int thresh_max_ext[3] = {100,65,30};
 
-	int i = 0;
+	int i = 0;int max = 0;
 	Point2f center;
 	float radius;
 	float score_couleur = 0;
-	while( score_couleur <= 0.2 && i < contours.size()){
-		minEnclosingCircle(contours[i], center, radius);
-		float score_couleur_in = color_scoring(img, center, radius, thresh_min_in, thresh_max_in, 4);
-		float score_couleur_ext = color_scoring(img, center, radius, thresh_min_ext, thresh_max_ext, -4);
-		score_couleur = score_couleur_in + score_couleur_ext / 2;
-		i++;
+	
+	while( score_couleur <= THRESH_COLOR_SCORE && i < contours.size()){
+	 	minEnclosingCircle(contours[i], center, radius);
+	 	float score_couleur_in = color_scoring(img, center, radius, thresh_min_in, thresh_max_in, 4);
+	 	float score_couleur_ext = color_scoring(img, center, radius, thresh_min_ext, thresh_max_ext, -4);
+	 	float score_tot = score_couleur_in + score_couleur_ext / 2;
+	 	max = (score_tot > score_couleur) ? i : max;
+	 	score_couleur = score_tot;
+	 	i++;
 	}
 	// si le score n'est pas probant, recupere le contour le mieux classé par findContours
-	if ( score_couleur < 0.2 ){
-		minEnclosingCircle(contours[0], center, radius);
+	if ( score_couleur <= THRESH_COLOR_SCORE ){
+		cout << "fail : " << score_couleur << endl;
+		return;
 	}
+	
 
-
-	cout << "center : " << center << "\n";
-	cout << "radius : " << radius << "\n";
-	cout << "score : " << score_couleur << endl;
+	// center : [17.5, 240.5]  radius : 6.71478
+	// cout << "center : " << center << "\n";
+	// cout << "radius : " << radius << "\n";
+	// cout << "score : " << score_couleur << endl;
  
-	Mat output = loadPicture(imPath);
+	// Mat output = loadPicture(imPath);
 	Scalar color = Scalar(0,0,255);
-	circle(output, center, (int) radius, color);
-	imshow("circle drawn", output);
+	circle(img, center, (int) radius, color);
 
+	e2 = getTickCount();
+	elapsedTime = (e2 - e1)/ getTickFrequency();
+	cout << "process time  : " << elapsedTime << endl;
 
-	FILE * f = fopen("test.txt", "a+");
-
-	if ((char) waitKey(0) == 's'){
-		fprintf(f, "%s %f %f %f\n", name_from_path(imPath), center.x, center.y, radius);
-	}
-
-	fclose(f);
 }
 
+void processvideo(const char * vidname){
+  VideoCapture video_source;
+  Mat frame;
 
+  video_source.open(vidname);
+  namedWindow("frame",1);
+  float e1; float e2; float elapsedTime;
+  for(;;)
+  {
+      video_source >> frame;
+	  process( frame );
+      imshow("frame", frame);
+
+      if( waitKey(30) >= 0) break;
+  }
+}
 
 int main(int argc, char * argv[])
 {
@@ -183,8 +212,8 @@ int main(int argc, char * argv[])
 
 	const char * const imPath = argv[1];
 
-	process(imPath);
-
+	//process(imPath);
+	processvideo( imPath );
 	return 0;
 }
 
