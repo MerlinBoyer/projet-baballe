@@ -1,14 +1,3 @@
-/*
- * solution.cpp
- *
- *  Created on: 20 déc. 2018
- *      Author: ajuven
- */
-
-
-
-
-
 #include <iostream>
 #include <cstdlib>
 #include <opencv2/opencv.hpp>
@@ -18,6 +7,59 @@
 
 using namespace cv;
 using namespace std;
+
+
+
+
+Mat loadPicture(const char * const path)
+{
+	Mat output = imread(path, CV_LOAD_IMAGE_COLOR);
+
+	if (output.data == NULL){
+		std::cerr << "Invalid picture path : " << path << '\n';
+		exit(EXIT_FAILURE);
+	}
+
+	return output;
+}
+
+
+
+Mat loadGrayPicture(const char * const path)
+{
+	Mat output = imread(path, CV_LOAD_IMAGE_GRAYSCALE);
+
+	if (output.data == NULL){
+		std::cerr << "Invalid picture path : " << path << '\n';
+		exit(EXIT_FAILURE);
+	}
+
+	return output;
+}
+
+
+
+const char * name_from_path(const char * const str)
+{
+	const char * last_valid = str;
+
+	for (const char * cursor = str ; *cursor != 0 ; cursor++){
+		if (*cursor == '/' && *(cursor + 1) != 0){
+			last_valid = cursor+1;
+		}
+	}
+
+	return last_valid;
+}
+
+
+
+typedef struct  {
+	int is_found;
+	float centerX;
+	float centerY;
+	float radius;
+} BallPosition;
 
 
 
@@ -111,7 +153,6 @@ int cropIt(Mat image){
 
 #define NO_BALL_FOUND ((BallPosition) {0, 0., 0., 0.})
 #define MAX_SHAPE_SCORE 0.2
-
 
 BallPosition ultimateSol(const char * const imPath, int detail_please = 0)
 {
@@ -216,16 +257,3 @@ BallPosition ultimateSol(const char * const imPath, int detail_please = 0)
 }
 
 
-
-
-int main(int argc, char * argv[])
-{
-	if (argc != 3){
-		cerr << "Usage : " << argv[0] << " trainResults testFolder\n";
-		exit(EXIT_FAILURE);
-	}
-
-	processScore(ultimateSol, argv[1], argv[2]);
-
-	return 0;
-}
