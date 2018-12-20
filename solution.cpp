@@ -1,3 +1,13 @@
+/*
+ * solution.cpp
+ *
+ *  Created on: 20 déc. 2018
+ *      Author: ajuven
+ */
+
+
+
+
 #include <iostream>
 #include <cstdlib>
 #include <opencv2/opencv.hpp>
@@ -210,7 +220,6 @@ BallPosition ultimateSol(const char * const imPath, int detail_please = 0)
 	Point2f solCenter;
 	float solRadius = 0;
 	unsigned solIndex = 0;
-	float solScore = 0.;
 
 	for (unsigned i = 0 ; i < contours.size() ; i++){
 
@@ -233,7 +242,6 @@ BallPosition ultimateSol(const char * const imPath, int detail_please = 0)
 			solCenter = center;
 			solRadius = radius;
 			solIndex = i;
-			solScore = score;
 		}
 	}
 
