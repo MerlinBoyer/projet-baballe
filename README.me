@@ -1,0 +1,40 @@
+/****************************************************************************/
+/*                                                                          */
+/*                    Image processing - Ball tracking                      */
+/*                                                                          */
+/****************************************************************************/
+
+
+
+/I Compiling
+  To compile the code you can use the Makefile by typing:
+      #
+
+
+/II Process an image
+  To find the ball on an image you can enter the following command:
+    #
+
+
+
+/III launch test on dataset
+  To find the ball on dataset folder and get statistics you can use this line:
+    #
+
+  Datasets have been manually labelized. After processing an image, ball
+  attendance, coordinates and radius are return and compared to reference data.
+
+  4 cases can be identified :
+    - If ball is found whereas it was not supposed to happen, a FALSE POSITIVE
+      is recorded.
+
+    - If ball is not found whereas it was supposed to happen, a FALSE NEGATIVE
+      is recorded.
+
+    - If ball is found and it was supposed to happen, and if its center
+      coordinates & radius errors are OVER a threshold, then a SUCESS is
+      registered
+
+    - If ball is found and it was supposed to happen, and if its center
+      coordinates & radius errors are BELOW a threshold, then a SUcCESS is
+      registered
