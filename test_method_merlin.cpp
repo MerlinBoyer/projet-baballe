@@ -15,7 +15,9 @@ using namespace std;
 
 /////////// usefull fct
 
-
+/*
+*  Load a picture in RGB
+*/
 Mat loadPicture(const char * const path)
 {
 	Mat output = imread(path, CV_LOAD_IMAGE_COLOR);
@@ -28,8 +30,9 @@ Mat loadPicture(const char * const path)
 	return output;
 }
 
-
-
+/*
+*  Load a picture in gray
+*/
 Mat loadGrayPicture(const char * const path)
 {
 	Mat output = imread(path, CV_LOAD_IMAGE_GRAYSCALE);
@@ -43,7 +46,10 @@ Mat loadGrayPicture(const char * const path)
 }
 
 
-
+/*
+*  return last name in a path.
+*  ex : ''/net/enseirb' => 'enseirb'
+*/
 const char * name_from_path(const char * const str)
 {
 	const char * last_valid = str;
@@ -58,7 +64,9 @@ const char * name_from_path(const char * const str)
 }
 
 
-
+/*
+*  Struc containing all ball tracking result
+*/
 typedef struct  {
 	int is_found;
 	float centerX;
@@ -67,21 +75,22 @@ typedef struct  {
 } BallPosition;
 
 
-
+/*
+*  Threshold used in the algorithm
+*/
 #define MAX_AVERAGE_OTSU_PIXVAL 60.
 #define MIN_CONTOUR_RADIUS 10.
 #define MAX_CONTOUR_RADIUS 150.
 
+#define MAX_RADIUS_PRECISION 0.25
+#define MAX_CENTER_PRECISION 0.25
 
-float shapeScore(Point2f center, int radius, vector<Point> contours ){
-	float score = 0;
-	for (unsigned j = 0 ; j < contours.size() ; j++){
-		int norme_carree = abs(contours[j].x - center.x)*abs(contours[j].x - center.x) + abs(contours[j].y - center.y)*abs(contours[j].y - center.y);
-		score += abs( sqrt( norme_carree ) - radius ) / radius;
-	}
-	return score / contours.size();
-}
 
+/*
+*  draw circle corresponding to BallPosition arg and print image. This function
+*  is called when main algorithm has failed to check where was the ball found
+*  on the image.
+*/
 void printFail(const char * imPath, BallPosition ball)
 {
 	Mat img = imread(imPath);
@@ -94,6 +103,26 @@ void printFail(const char * imPath, BallPosition ball)
 	return;
 }
 
+
+/*
+*  Return a score based on correponding rate between a shape (OpenCV contour)
+*  and its minEnclosingCircle. The lowest score match to the roundest contour.
+*/
+float shapeScore(Point2f center, int radius, vector<Point> contours ){
+	float score = 0;
+	for (unsigned j = 0 ; j < contours.size() ; j++){
+		int norme_carree = abs(contours[j].x - center.x)*abs(contours[j].x - center.x) + abs(contours[j].y - center.y)*abs(contours[j].y - center.y);
+		score += abs( sqrt( norme_carree ) - radius ) / radius;
+	}
+	return score / contours.size();
+}
+
+
+/*
+*  check luminosity average for each row and return index (= image row number)
+*  if its luminosity is over a threshold. The aim is to crop bright top part (if
+*  there is one) because it can not be the field.
+*/
 int cropIt(Mat image){
 	Mat HSV, Hue;
 	cvtColor(image, HSV, CV_BGR2HSV);
@@ -113,10 +142,6 @@ int cropIt(Mat image){
 	}
 
 	if (index > image.cols / 2){ index = 0;}
-	// std::cout << h_s_v[2].cols << index << h_s_v[2].cols-index << std::endl;
-	// Mat crp = h_s_v[2](Rect(0, index, h_s_v[2].cols, h_s_v[2].rows-(index+2)));
-	// imshow("cropped", crp);
-	// waitKey();
 	return index;
 }
 
@@ -126,8 +151,9 @@ int cropIt(Mat image){
 
 
 
-
-
+/*
+*  Main algorithm
+*/
 BallPosition mostRound(const char * const imPath, int verbose = 0)
 {
 	Mat img = imread(imPath);
@@ -159,8 +185,9 @@ BallPosition mostRound(const char * const imPath, int verbose = 0)
 
 	if (m.val[0] > MAX_AVERAGE_OTSU_PIXVAL){
 		cout << " /!/ Otsu overflow error " << endl;
-		if ( verbose )
+		if ( verbose ){
 			waitKey();
+		}
 		return (BallPosition) {0, 0., 0., 0.};
 	}
 
@@ -194,13 +221,6 @@ BallPosition mostRound(const char * const imPath, int verbose = 0)
 		}
 
 		float score = shapeScore( center, radius, contours[i]);
-		// if (verbose){
-		// 	printFail(imPath, (BallPosition){1, center.x, center.y, radius});
-		// 	cout << "score : " << score << " nb de points : " << contours[i].size()<< endl;
-		// 	drawContours(greyM, contours, 0, Scalar(255));
-		// 	imshow ("contours", greyM);
-		// 	waitKey();
-		// }
 
 		if (score < best_shape_score ){
 			best_shape_score = score;
@@ -225,17 +245,15 @@ BallPosition mostRound(const char * const imPath, int verbose = 0)
 		}
 		return  (BallPosition) {0, 0., 0., 0.};
 	}
+
+	cout << "found with shape score : " << best_shape_score << ", crop index : " << limitIndex << ", Otsu tr : " << m.val[0] << endl;
+
 	Scalar color = Scalar(0,0,255);
 	circle(img, centerSol, radiusSol, color);
 	if (verbose){
 		imshow("result", img);
 		waitKey();
 	}
-
-
-  cout << "found with score : " << best_shape_score << ", crop index : " << limitIndex << ", Otsu tr : " << m.val[0] << endl;
-	if (verbose)
-		waitKey();
 
 	return (BallPosition) {1, centerSol.x, centerSol.y, radiusSol};
 }
@@ -254,13 +272,15 @@ BallPosition mostRound(const char * const imPath, int verbose = 0)
 
 
 
-///////     test zone
+///////     test zone      /////////////////
 
 
 typedef BallPosition (*BallFinderMethod)(const char * const fileName, int verbose);
 
 
-
+/*
+*  return the error between radius found and reference radius
+*/
 float radiusPrecision(BallPosition & prediction, BallPosition & correct)
 {
 	float delta_r = prediction.radius - correct.radius;
@@ -272,7 +292,9 @@ float radiusPrecision(BallPosition & prediction, BallPosition & correct)
 	return delta_r / correct.radius;
 }
 
-
+/*
+*  return the error between coordinates found and reference coordinates
+*/
 float centerPrecision(BallPosition & prediction, BallPosition & correct)
 {
 	float deltaX = prediction.centerX - correct.centerX;
@@ -282,11 +304,11 @@ float centerPrecision(BallPosition & prediction, BallPosition & correct)
 }
 
 
-#define MAX_RADIUS_PRECISION 0.25
-#define MAX_CENTER_PRECISION 0.25
 
 
-void processScore(BallFinderMethod method, const char * const trainResults, const char * const testFolder)
+////////////////////////    test algorithm     ///////////////////
+
+void processScore(BallFinderMethod method, const char * const trainResults, const char * const testFolder, int verbose)
 {
 	FILE * results = fopen(trainResults, "r");
 
@@ -326,6 +348,7 @@ void processScore(BallFinderMethod method, const char * const trainResults, cons
 
 		totalNbTests++;
 
+
 		if (correctPos.is_found){
 			nbTestsWithBall++;
 		}
@@ -338,14 +361,14 @@ void processScore(BallFinderMethod method, const char * const trainResults, cons
 			if (correctPos.is_found){
 				nbTestsWithBallButNotFound++;
 				cout << file_name << " False Negative\n";
-				method(file_name, 1);
+				method(file_name, verbose);
 			}
 			continue;
 
 		} else if (!correctPos.is_found){
 			nbTestsWithNoBallButFound++;
 			cout << file_name << " FALSE POSITIVE !!!!!!\n";
-			method(file_name, 1);
+			method(file_name, verbose);
 			continue;
 		}
 
@@ -365,13 +388,15 @@ void processScore(BallFinderMethod method, const char * const trainResults, cons
 
 		if (radPrec > MAX_RADIUS_PRECISION || centerPrec > MAX_CENTER_PRECISION){
 			cout << file_name << " " << radPrec << ", " << centerPrec << "\n";
-			method(file_name, 1);
+			method(file_name, verbose);
 		} else {
 			nbPassed++;
 		}
 
 		radPrecSum += radPrec;
 		centerPrecSum += centerPrec;
+
+
 	}
 
 	float avgRadPrec = nbTreated ? radPrecSum / nbTreated : 0.;
@@ -383,8 +408,8 @@ void processScore(BallFinderMethod method, const char * const trainResults, cons
 	cout << "totalNbTests : " << totalNbTests << "\n\n";
 
 	cout << "nbTestsWithBall : " << nbTestsWithBall << "\n";
-	cout << "nbTestsWithBallButNotFound : " << nbTestsWithBallButNotFound <<"\n";
-	cout << "nbTestsWithNoBallButFound : " << nbTestsWithNoBallButFound <<"\n\n";
+	cout << "NbFalseNegatives : " << nbTestsWithBallButNotFound <<"\n";
+	cout << "NbFalsePositives : " << nbTestsWithNoBallButFound <<"\n\n";
 
 	cout << "nbTreatedBallScores : " << nbTreated << "\n";
 	cout << "nbScorePassed : " << nbPassed << "\n\n";
@@ -407,12 +432,12 @@ void processScore(BallFinderMethod method, const char * const trainResults, cons
 
 int main(int argc, char * argv[])
 {
-	if (argc != 3){
-		cerr << "Usage : " << argv[0] << " trainResults testFolder\n";
+	if (argc != 4){
+		cerr << "Usage : " << argv[0] << " trainResults testFolder verbose(=0 or 1)\n";
 		exit(EXIT_FAILURE);
 	}
 
-	processScore(mostRound, argv[1], argv[2]);
+	processScore(mostRound, argv[1], argv[2], atoi(argv[3]));
 
 	return 0;
 }
